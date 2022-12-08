@@ -1,28 +1,26 @@
-from typing import Tuple, List
-from torch import Tensor
+from typing import List, Tuple
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-__all__ = ['LSTMCell', 'LayerNormLSTMCell', 'HyperLSTMCell', 'LSTMLayer',
-           'BiLSTMLayer']
+from torch import Tensor
 
+
+__all__ = ["LSTMCell", "LayerNormLSTMCell", "HyperLSTMCell", "LSTMLayer", "BiLSTMLayer"]
 
 
 def init_orthogonal_(weight, hsize):
-    assert weight.size(0) == 4*hsize
+    assert weight.size(0) == 4 * hsize
     for i in range(4):
-        nn.init.orthogonal_(weight[i*hsize:(i+1)*hsize])
+        nn.init.orthogonal_(weight[i * hsize : (i + 1) * hsize])
 
 
 # ---- LSTMCell ----
 
+
 class LSTMCell(nn.Module):
-    def __init__(self,
-                 input_size,
-                 hidden_size,
-                 forget_bias=1.,
-                 r_dropout=0.1):
+    def __init__(self, input_size, hidden_size, forget_bias=1.0, r_dropout=0.1):
         super().__init__()
         self.weight_ih = nn.Parameter(torch.empty(4 * hidden_size, input_size))
         self.weight_hh = nn.Parameter(torch.empty(4 * hidden_size, hidden_size))
@@ -64,15 +62,15 @@ class LSTMCell(nn.Module):
         return h, state
 
 
-
 # ---- LayerNormLSTMCell ----
+
 
 class ChunkLayerNorm(nn.Module):
     def __init__(self, num_units, chunks, eps=1e-5, affine=True):
         super().__init__()
         if affine:
-            self.weight = nn.Parameter(torch.empty(chunks*num_units))
-            self.bias = nn.Parameter(torch.empty(chunks*num_units))
+            self.weight = nn.Parameter(torch.empty(chunks * num_units))
+            self.bias = nn.Parameter(torch.empty(chunks * num_units))
         self.num_units = num_units
         self.chunks = chunks
         self.eps = eps
@@ -88,17 +86,14 @@ class ChunkLayerNorm(nn.Module):
         # type: (Tensor) -> Tensor
         x = x.reshape(x.size(0), self.chunks, self.num_units)
         x = F.layer_norm(x, (self.num_units,), None, None, self.eps)
-        x = x.reshape(x.size(0), self.chunks*self.num_units)
+        x = x.reshape(x.size(0), self.chunks * self.num_units)
         if self.affine:
             x = x * self.weight + self.bias
         return x
 
+
 class LayerNormLSTMCell(nn.Module):
-    def __init__(self,
-                 input_size,
-                 hidden_size,
-                 forget_bias=1.,
-                 r_dropout=0.1):
+    def __init__(self, input_size, hidden_size, forget_bias=1.0, r_dropout=0.1):
         super().__init__()
         self.weight_ih = nn.Parameter(torch.empty(4 * hidden_size, input_size))
         self.weight_hh = nn.Parameter(torch.empty(4 * hidden_size, hidden_size))
@@ -142,20 +137,18 @@ class LayerNormLSTMCell(nn.Module):
         return h, state
 
 
-
 # ---- HyperLSTMCell ----
+
 
 class HyperNorm(nn.Module):
     def __init__(self, input_size, embed_size, output_size, bias=True):
         super().__init__()
         self.scale_net = nn.Sequential(
-            nn.Linear(input_size, embed_size, bias=True),
-            nn.Linear(embed_size, output_size, bias=False)
+            nn.Linear(input_size, embed_size, bias=True), nn.Linear(embed_size, output_size, bias=False)
         )
         if bias:
             self.bias_net = nn.Sequential(
-                nn.Linear(input_size, embed_size, bias=False),
-                nn.Linear(embed_size, output_size, bias=False)
+                nn.Linear(input_size, embed_size, bias=False), nn.Linear(embed_size, output_size, bias=False)
             )
         else:
             self.bias_net = None
@@ -164,12 +157,12 @@ class HyperNorm(nn.Module):
 
     def reset_parameters(self):
         init_gamma = 0.1
-        nn.init.constant_(self.scale_net[0].weight, 0.)
-        nn.init.constant_(self.scale_net[0].bias, 1.)
-        nn.init.constant_(self.scale_net[1].weight, init_gamma/self.embed_size)
+        nn.init.constant_(self.scale_net[0].weight, 0.0)
+        nn.init.constant_(self.scale_net[0].bias, 1.0)
+        nn.init.constant_(self.scale_net[1].weight, init_gamma / self.embed_size)
         if self.bias_net is not None:
-            nn.init.normal_(self.bias_net[0].weight, 0., 0.01)
-            nn.init.constant_(self.bias_net[1].weight, 0.)
+            nn.init.normal_(self.bias_net[0].weight, 0.0, 0.01)
+            nn.init.constant_(self.bias_net[1].weight, 0.0)
 
     def forward(self, x, hyper_out):
         # type: (Tensor, Tensor) -> Tensor
@@ -182,24 +175,21 @@ class HyperNorm(nn.Module):
 
 
 class HyperLSTMCell(nn.Module):
-    def __init__(self,
-                 input_size,
-                 hidden_size,
-                 forget_bias=1.,
-                 r_dropout=0.1,
-                 layer_norm=True,
-                 hyper_hidden_size=256,
-                 hyper_embed_size=32,
-                 hyper_r_dropout=0.1):
+    def __init__(
+        self,
+        input_size,
+        hidden_size,
+        forget_bias=1.0,
+        r_dropout=0.1,
+        layer_norm=True,
+        hyper_hidden_size=256,
+        hyper_embed_size=32,
+        hyper_r_dropout=0.1,
+    ):
         super().__init__()
         # hyper LSTM cell
         hyper_init = LayerNormLSTMCell if layer_norm else LSTMCell
-        self.hyper_cell = hyper_init(
-            input_size,
-            hyper_hidden_size,
-            forget_bias=forget_bias,
-            r_dropout=hyper_r_dropout
-        )
+        self.hyper_cell = hyper_init(input_size, hyper_hidden_size, forget_bias=forget_bias, r_dropout=hyper_r_dropout)
         # outer LSTM params
         self.weight_ih = nn.Parameter(torch.empty(4 * hidden_size, input_size))
         self.weight_hh = nn.Parameter(torch.empty(4 * hidden_size, hidden_size))
@@ -214,18 +204,18 @@ class HyperLSTMCell(nn.Module):
         # hypernorm layers
         def norm_init(use_bias):
             return HyperNorm(hyper_hidden_size, hyper_embed_size, hidden_size, use_bias)
-        self.norms_x = nn.ModuleList([
-            norm_init(use_bias=False),
-            norm_init(use_bias=False),
-            norm_init(use_bias=False),
-            norm_init(use_bias=False)
-        ])
-        self.norms_h = nn.ModuleList([
-            norm_init(use_bias=True),
-            norm_init(use_bias=True),
-            norm_init(use_bias=True),
-            norm_init(use_bias=True)
-        ])
+
+        self.norms_x = nn.ModuleList(
+            [
+                norm_init(use_bias=False),
+                norm_init(use_bias=False),
+                norm_init(use_bias=False),
+                norm_init(use_bias=False),
+            ]
+        )
+        self.norms_h = nn.ModuleList(
+            [norm_init(use_bias=True), norm_init(use_bias=True), norm_init(use_bias=True), norm_init(use_bias=True)]
+        )
         # misc
         self.input_size = input_size
         self.hidden_size = hidden_size
@@ -262,8 +252,8 @@ class HyperLSTMCell(nn.Module):
 
     def _apply_hypernorm(self, h_hyper, Wx, Wh):
         # type: (Tensor, Tensor, Tensor) -> Tensor
-        gates_x = Wx.chunk(4,1)
-        gates_h = Wh.chunk(4,1)
+        gates_x = Wx.chunk(4, 1)
+        gates_h = Wh.chunk(4, 1)
         gates = torch.jit.annotate(List[Tensor], [])
         i = 0
         for norm in self.norms_x:
@@ -318,23 +308,14 @@ class HyperLSTMCell(nn.Module):
         return h, state
 
 
-
-_cell_types = {
-    'lstm' : LSTMCell,
-    'layer_norm' : LayerNormLSTMCell,
-    'hyper' : HyperLSTMCell
-}
-
-
+_cell_types = {"lstm": LSTMCell, "layer_norm": LayerNormLSTMCell, "hyper": HyperLSTMCell}
 
 
 # ---- LSTM Layer ----
 
+
 class LSTMLayer(nn.Module):
-    def __init__(self,
-                 cell,
-                 batch_first=False,
-                 reverse=False):
+    def __init__(self, cell, batch_first=False, reverse=False):
         super().__init__()
         self.cell = cell
         self.dim = 1 if batch_first else 0
@@ -361,10 +342,7 @@ class LSTMLayer(nn.Module):
 
 
 class BiLSTMLayer(nn.Module):
-    def __init__(self,
-                 cell_f,
-                 cell_r,
-                 batch_first=False):
+    def __init__(self, cell_f, cell_r, batch_first=False):
         super().__init__()
         self.layer_f = LSTMLayer(cell_f, batch_first)
         self.layer_r = LSTMLayer(cell_r, batch_first, reverse=True)
@@ -373,14 +351,14 @@ class BiLSTMLayer(nn.Module):
     def forward(self, inputs, states):
         # type: (Tensor, Tuple[Tensor, Tensor]) -> Tuple[Tensor, Tuple[Tensor, Tensor]]
         hx, cx = states
-        state_f = torch.jit.annotate(Tuple[Tensor,Tensor], (hx[0], cx[0]))
-        state_r = torch.jit.annotate(Tuple[Tensor,Tensor], (hx[1], cx[1]))
+        state_f = torch.jit.annotate(Tuple[Tensor, Tensor], (hx[0], cx[0]))
+        state_r = torch.jit.annotate(Tuple[Tensor, Tensor], (hx[1], cx[1]))
         out_f, out_state_f = self.layer_f(inputs, state_f)
         out_r, out_state_r = self.layer_r(inputs, state_r)
         hy = torch.stack((out_state_f[0], out_state_r[0]), 0)
         cy = torch.stack((out_state_f[1], out_state_r[1]), 0)
 
         out = torch.cat((out_f, out_r), -1)
-        out_states = torch.jit.annotate(Tuple[Tensor,Tensor], (hy, cy))
+        out_states = torch.jit.annotate(Tuple[Tensor, Tensor], (hy, cy))
 
         return out, out_states

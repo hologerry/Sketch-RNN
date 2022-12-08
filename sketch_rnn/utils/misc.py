@@ -14,11 +14,12 @@ def get_max_len(strokes):
             max_len = ml
     return max_len
 
+
 def to_tensor(x):
     if isinstance(x, torch.Tensor):
         pass
     elif isinstance(x, np.ndarray):
         x = torch.from_numpy(x)
     else:
-        raise Exception('input must be a tensor or ndarray.')
+        raise Exception("input must be a tensor or ndarray.")
     return x.float()

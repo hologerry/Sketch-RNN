@@ -1,7 +1,8 @@
 import torch
 import torch.distributions as D
 
-__all__ = ['tikhonov_reg2d', 'compute_cov2d', 'sample_gmm']
+
+__all__ = ["tikhonov_reg2d", "compute_cov2d", "sample_gmm"]
 
 
 def tikhonov_reg2d(scales, corrs, alpha):
@@ -11,6 +12,7 @@ def tikhonov_reg2d(scales, corrs, alpha):
     scales_ = torch.sqrt(scales**2 + alpha)
     corrs_ = corrs * torch.prod(scales, -1) / torch.prod(scales_, -1)
     return scales_, corrs_
+
 
 def compute_cov2d(scales, corrs):
     """
@@ -22,10 +24,10 @@ def compute_cov2d(scales, corrs):
     corrs: Tensor[...]
     """
     # compute covariances
-    cov12 = corrs*torch.prod(scales,dim=-1) # (...,)
-    covs = torch.diag_embed(scales**2) # (...,d,d)
-    I = torch.diag_embed(torch.ones_like(scales)) # (...,d,d)
-    covs = covs + cov12.unsqueeze(-1).unsqueeze(-1)*(1.-I)
+    cov12 = corrs * torch.prod(scales, dim=-1)  # (...,)
+    covs = torch.diag_embed(scales**2)  # (...,d,d)
+    I = torch.diag_embed(torch.ones_like(scales))  # (...,d,d)
+    covs = covs + cov12.unsqueeze(-1).unsqueeze(-1) * (1.0 - I)
     return covs
 
 

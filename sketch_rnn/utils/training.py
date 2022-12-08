@@ -1,26 +1,29 @@
-import warnings
 import os
 import shutil
+import warnings
+
 import numpy as np
 import torch
 import torch.nn as nn
 
-__all__ = ['AverageMeter', 'ModelCheckpoint']
+
+__all__ = ["AverageMeter", "ModelCheckpoint"]
 
 
 class AverageMeter:
     """Computes and stores the average and current value."""
+
     def __init__(self):
-        self.val = 0.
-        self.avg = 0.
-        self.sum = 0.
-        self.count = 0.
+        self.val = 0.0
+        self.avg = 0.0
+        self.sum = 0.0
+        self.count = 0.0
 
     def reset(self):
-        self.val = 0.
-        self.avg = 0.
-        self.sum = 0.
-        self.count = 0.
+        self.val = 0.0
+        self.avg = 0.0
+        self.sum = 0.0
+        self.count = 0.0
 
     def update(self, val, n=1):
         self.val = val
@@ -30,29 +33,24 @@ class AverageMeter:
 
 
 class ModelCheckpoint:
-    def __init__(self,
-                 save_dir,
-                 save_freq=5,
-                 losses_only=False,
-                 best_only=True,
-                 tensorboard=False):
+    def __init__(self, save_dir, save_freq=5, losses_only=False, best_only=True, tensorboard=False):
         if os.path.exists(save_dir):
-            warnings.warn('Save directory already exists! Removing old '
-                          'directory contents.')
+            warnings.warn("Save directory already exists! Removing old " "directory contents.")
             shutil.rmtree(save_dir)
         os.mkdir(save_dir)
-        self.model_file = os.path.join(save_dir, 'model.pt')
-        self.optimizer_file = os.path.join(save_dir, 'optimizer.pt')
-        self.losses_file = os.path.join(save_dir, 'losses.pt')
+        self.model_file = os.path.join(save_dir, "model.pt")
+        self.optimizer_file = os.path.join(save_dir, "optimizer.pt")
+        self.losses_file = os.path.join(save_dir, "losses.pt")
         self.save_freq = save_freq
         self.losses_only = losses_only
         self.best_only = best_only
         self.losses = np.array([], dtype=np.float32)
         self.val_losses = np.array([], dtype=np.float32)
-        self.best = float('inf')
+        self.best = float("inf")
         if tensorboard:
             from torch.utils.tensorboard import SummaryWriter
-            log_dir = os.path.join(save_dir, 'logs')
+
+            log_dir = os.path.join(save_dir, "logs")
             self.writer = SummaryWriter(log_dir)
         else:
             self.writer = None
@@ -70,15 +68,15 @@ class ModelCheckpoint:
         self.losses = np.append(self.losses, loss)
         self.val_losses = np.append(self.val_losses, val_loss)
         if self.writer is not None:
-            self.writer.add_scalar('loss', loss, epoch)
-            self.writer.add_scalar('loss', val_loss, epoch)
+            self.writer.add_scalar("loss", loss, epoch)
+            self.writer.add_scalar("loss", val_loss, epoch)
             self.writer.flush()
 
         # save losses
-        torch.save({
-            'train': torch.from_numpy(self.losses).float(),
-            'valid': torch.from_numpy(self.val_losses).float()
-            }, self.losses_file)
+        torch.save(
+            {"train": torch.from_numpy(self.losses).float(), "valid": torch.from_numpy(self.val_losses).float()},
+            self.losses_file,
+        )
 
         if self.losses_only:
             return

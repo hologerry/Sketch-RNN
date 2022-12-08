@@ -1,20 +1,20 @@
-import time
 import argparse
-from tqdm import tqdm
+import time
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
+
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
+from sketch_rnn.dataset import SketchRNNDataset, collate_drawings, load_strokes
 from sketch_rnn.hparams import hparam_parser
-from sketch_rnn.utils import AverageMeter, ModelCheckpoint
-from sketch_rnn.dataset import SketchRNNDataset, load_strokes, collate_drawings
 from sketch_rnn.model import SketchRNN, model_step
+from sketch_rnn.utils import AverageMeter, ModelCheckpoint
 
 
-
-def train_epoch(model, data_loader, optimizer, scheduler, device,
-                grad_clip=None):
+def train_epoch(model, data_loader, optimizer, scheduler, device, grad_clip=None):
     model.train()
     loss_meter = AverageMeter()
     with tqdm(total=len(data_loader.dataset)) as progress_bar:
@@ -52,7 +52,7 @@ def eval_epoch(model, data_loader, device):
 def train_sketch_rnn(args):
     torch.manual_seed(884)
     use_gpu = torch.cuda.is_available()
-    device = torch.device('cuda') if use_gpu else torch.device('cpu')
+    device = torch.device("cuda") if use_gpu else torch.device("cpu")
     saver = ModelCheckpoint(args.save_dir) if (args.save_dir is not None) else None
 
     # initialize train and val datasets
@@ -61,25 +61,25 @@ def train_sketch_rnn(args):
         train_strokes,
         max_len=args.max_seq_len,
         random_scale_factor=args.random_scale_factor,
-        augment_stroke_prob=args.augment_stroke_prob
+        augment_stroke_prob=args.augment_stroke_prob,
     )
     val_data = SketchRNNDataset(
         valid_strokes,
         max_len=args.max_seq_len,
         scale_factor=train_data.scale_factor,
         random_scale_factor=0.0,
-        augment_stroke_prob=0.0
+        augment_stroke_prob=0.0,
     )
 
     # initialize data loaders
-    collate_fn = lambda x : collate_drawings(x, args.max_seq_len)
+    collate_fn = lambda x: collate_drawings(x, args.max_seq_len)
     train_loader = DataLoader(
         train_data,
         batch_size=args.batch_size,
         collate_fn=collate_fn,
         shuffle=True,
         pin_memory=use_gpu,
-        num_workers=args.num_workers
+        num_workers=args.num_workers,
     )
     val_loader = DataLoader(
         val_data,
@@ -87,7 +87,7 @@ def train_sketch_rnn(args):
         collate_fn=collate_fn,
         shuffle=False,
         pin_memory=use_gpu,
-        num_workers=args.num_workers
+        num_workers=args.num_workers,
     )
 
     # model & optimizer
@@ -96,24 +96,21 @@ def train_sketch_rnn(args):
     scheduler = optim.lr_scheduler.ExponentialLR(optimizer, args.lr_decay)
 
     for epoch in range(args.num_epochs):
-        train_loss = train_epoch(
-            model, train_loader, optimizer, scheduler, device, args.grad_clip)
+        train_loss = train_epoch(model, train_loader, optimizer, scheduler, device, args.grad_clip)
         val_loss = eval_epoch(model, val_loader, device)
-        print('Epoch %0.3i, Train Loss: %0.4f, Valid Loss: %0.4f' %
-              (epoch+1, train_loss, val_loss))
+        print(f"Epoch {epoch:03d}, Train Loss: {train_loss:0.4f}, Valid Loss: {val_loss:0.4f}")
         if saver is not None:
             saver(epoch, model, optimizer, train_loss, val_loss)
-        time.sleep(0.5) # avoids progress bar issue
+        time.sleep(0.5)  # avoids progress bar issue
 
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     hp_parser = hparam_parser()
     parser = argparse.ArgumentParser(parents=[hp_parser])
-    parser.add_argument('--data_dir', type=str, required=True)
-    parser.add_argument('--save_dir', type=str, default=None)
-    parser.add_argument('--num_epochs', type=int, default=200)
-    parser.add_argument('--num_workers', type=int, default=4)
+    parser.add_argument("--data_dir", type=str, required=True)
+    parser.add_argument("--save_dir", type=str, default=None)
+    parser.add_argument("--num_epochs", type=int, default=200)
+    parser.add_argument("--num_workers", type=int, default=4)
     args = parser.parse_args()
 
     train_sketch_rnn(args)
